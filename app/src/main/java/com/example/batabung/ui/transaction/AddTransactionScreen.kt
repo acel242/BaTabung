@@ -22,10 +22,12 @@ import com.example.batabung.ui.dashboard.DashboardViewModel
 
 /**
  * Screen untuk menambah transaksi baru.
+ * Struktur baru: Transaksi langsung ke Bank (1 Bank = 1 Tabungan)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionScreen(
+    bankId: String,
     viewModel: DashboardViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit
 ) {
@@ -35,6 +37,11 @@ fun AddTransactionScreen(
     var catatan by remember { mutableStateOf("") }
     var showKategoriDropdown by remember { mutableStateOf(false) }
     var showError by remember { mutableStateOf(false) }
+    
+    // Load bank data
+    LaunchedEffect(bankId) {
+        viewModel.loadBankById(bankId)
+    }
     
     val kategoriPemasukan = listOf("Gaji", "Bonus", "Hadiah", "Investasi", "Lainnya")
     val kategoriPengeluaran = listOf("Makan", "Transport", "Belanja", "Hiburan", "Tagihan", "Kesehatan", "Lainnya")

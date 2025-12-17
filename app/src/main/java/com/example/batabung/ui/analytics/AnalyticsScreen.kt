@@ -58,6 +58,7 @@ fun AnalyticsScreen(
                 )
             }
             
+            
             // Analysis Insight
             item {
                 AnalysisInsightCard(
@@ -65,19 +66,6 @@ fun AnalyticsScreen(
                     pengeluaran = uiState.pengeluaranBulanIni,
                     saldo = uiState.saldo
                 )
-            }
-            
-            // Target Progress (if exists)
-            val tabungan = uiState.tabungan
-            val target = tabungan?.target
-            if (tabungan != null && target != null && target > 0) {
-                item {
-                    TargetProgressCard(
-                        saldo = uiState.saldo,
-                        target = target,
-                        progress = uiState.progressPercentage
-                    )
-                }
             }
             
             // Tips Card

@@ -35,9 +35,13 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
+    modifier: Modifier = Modifier,
     viewModel: ChatViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
-    onNavigateToDashboard: () -> Unit = {}
+    onNavigateToDashboard: () -> Unit = {},
+    onNavigateToBankList: () -> Unit = {},
+    onLogout: () -> Unit = {},
+    showTopBar: Boolean = true
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var inputText by remember { mutableStateOf("") }
@@ -64,97 +68,93 @@ fun ChatScreen(
         }
     }
     
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Animated avatar with pulsing effect
-                        AnimatedAIAvatar(isOnline = uiState.isAIReady)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "BaTabung AI",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            AnimatedVisibility(
-                                visible = true,
-                                enter = fadeIn() + slideInVertically()
-                            ) {
+    if (showTopBar) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Animated avatar with pulsing effect
+                            AnimatedAIAvatar(isOnline = uiState.isAIReady)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
                                 Text(
-                                    text = if (uiState.isAIReady) "Online" else "Offline",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (uiState.isAIReady) 
-                                        Color(0xFF4CAF50) 
-                                    else 
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                    text = "BaTabung AI",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
+                                AnimatedVisibility(
+                                    visible = true,
+                                    enter = fadeIn() + slideInVertically()
+                                ) {
+                                    Text(
+                                        text = if (uiState.isAIReady) "Online" else "Offline",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (uiState.isAIReady) 
+                                            Color(0xFF4CAF50) 
+                                        else 
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                    )
+                                }
                             }
                         }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Kembali")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onNavigateToDashboard) {
-                        Icon(Icons.Outlined.Dashboard, contentDescription = "Dashboard")
-                    }
-                    IconButton(onClick = { viewModel.clearChat() }) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = "Clear chat")
-                    }
-                    IconButton(onClick = { showApiKeyDialog = true }) {
-                        Icon(Icons.Outlined.Key, contentDescription = "API Key")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Messages List with smooth animations
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                state = listState,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(
-                    items = uiState.messages,
-                    key = { it.hashCode() }
-                ) { message ->
-                    AnimatedChatBubble(message = message)
-                }
-            }
-            
-            // Input Area with animation
-            AnimatedVisibility(
-                visible = true,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-            ) {
-                ChatInputArea(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    onSend = {
-                        if (inputText.isNotBlank()) {
-                            viewModel.sendMessage(inputText)
-                            inputText = ""
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "Kembali")
                         }
                     },
-                    isLoading = uiState.isLoading,
-                    isAIReady = uiState.isAIReady
+                    actions = {
+                        IconButton(onClick = onNavigateToDashboard) {
+                            Icon(Icons.Outlined.Dashboard, contentDescription = "Dashboard")
+                        }
+                        IconButton(onClick = onNavigateToBankList) {
+                            Icon(Icons.Outlined.AccountBalance, contentDescription = "Kelola Bank")
+                        }
+                        IconButton(onClick = { viewModel.clearChat() }) {
+                            Icon(Icons.Outlined.Refresh, contentDescription = "Clear chat")
+                        }
+                        IconButton(onClick = { showApiKeyDialog = true }) {
+                            Icon(Icons.Outlined.Key, contentDescription = "API Key")
+                        }
+                        IconButton(onClick = onLogout) {
+                            Icon(Icons.Outlined.Logout, contentDescription = "Logout")
+                        }
+                    }
                 )
             }
+        ) { paddingValues ->
+            ChatContent(
+                modifier = Modifier.padding(paddingValues),
+                uiState = uiState,
+                inputText = inputText,
+                onInputChange = { inputText = it },
+                onSend = {
+                    if (inputText.isNotBlank()) {
+                        viewModel.sendMessage(inputText)
+                        inputText = ""
+                    }
+                },
+                listState = listState,
+                onShowApiKeyDialog = { showApiKeyDialog = true }
+            )
         }
+    } else {
+        // When embedded in HomeScreen, no scaffold, just content
+        ChatContent(
+            modifier = modifier,
+            uiState = uiState,
+            inputText = inputText,
+            onInputChange = { inputText = it },
+            onSend = {
+                if (inputText.isNotBlank()) {
+                    viewModel.sendMessage(inputText)
+                    inputText = ""
+                }
+            },
+            listState = listState,
+            onShowApiKeyDialog = { showApiKeyDialog = true }
+        )
     }
     
     // API Key Dialog with animation
@@ -166,6 +166,87 @@ fun ChatScreen(
                 showApiKeyDialog = false
             }
         )
+    }
+}
+
+/**
+ * Chat content composable - extracted for reuse with and without toolbar.
+ */
+@Composable
+private fun ChatContent(
+    modifier: Modifier = Modifier,
+    uiState: ChatUiState,
+    inputText: String,
+    onInputChange: (String) -> Unit,
+    onSend: () -> Unit,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    onShowApiKeyDialog: () -> Unit
+) {
+    Column(
+        modifier = modifier.fillMaxSize()
+    ) {
+        // Header with AI status for embedded mode
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AnimatedAIAvatar(isOnline = uiState.isAIReady)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "BaTabung AI",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (uiState.isAIReady) "Online" else "Offline - Klik ikon kunci untuk set API Key",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (uiState.isAIReady) 
+                        Color(0xFF4CAF50) 
+                    else 
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+            IconButton(onClick = onShowApiKeyDialog) {
+                Icon(Icons.Outlined.Key, contentDescription = "API Key")
+            }
+        }
+        
+        HorizontalDivider()
+        
+        // Messages List with smooth animations
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            state = listState,
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(
+                items = uiState.messages,
+                key = { it.hashCode() }
+            ) { message ->
+                AnimatedChatBubble(message = message)
+            }
+        }
+        
+        // Input Area with animation
+        AnimatedVisibility(
+            visible = true,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            ChatInputArea(
+                value = inputText,
+                onValueChange = onInputChange,
+                onSend = onSend,
+                isLoading = uiState.isLoading,
+                isAIReady = uiState.isAIReady
+            )
+        }
     }
 }
 

@@ -26,15 +26,22 @@ import com.example.batabung.util.FormatUtils
 
 /**
  * Screen untuk menampilkan riwayat transaksi.
+ * Struktur baru: Transaksi langsung per Bank (1 Bank = 1 Tabungan)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
+    bankId: String,
     viewModel: DashboardViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showDeleteDialog by remember { mutableStateOf<Transaksi?>(null) }
+    
+    // Load bank data
+    LaunchedEffect(bankId) {
+        viewModel.loadBankById(bankId)
+    }
     
     Scaffold(
         topBar = {
@@ -78,7 +85,6 @@ fun HistoryScreen(
                 }
             }
         } else {
-            // TODO: Ganti dengan flow getAllTransaksi untuk data lengkap
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()

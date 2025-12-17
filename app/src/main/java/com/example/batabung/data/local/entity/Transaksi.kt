@@ -4,28 +4,38 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.util.UUID
 
 /**
  * Entity untuk tabel transaksi.
- * Mencatat setiap pemasukan atau pengeluaran dalam tabungan.
+ * Mencatat setiap pemasukan atau pengeluaran dalam bank/tabungan.
+ * 
+ * Struktur baru: Transaksi langsung terhubung ke Bank (1 Bank = 1 Tabungan)
  */
 @Entity(
     tableName = "transaksi",
     foreignKeys = [
         ForeignKey(
-            entity = Tabungan::class,
+            entity = Bank::class,
             parentColumns = ["id"],
-            childColumns = ["tabunganId"],
+            childColumns = ["bankId"],
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("tabunganId")]
+    indices = [
+        Index("bankId"),
+        Index("userId")
+    ]
 )
 data class Transaksi(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    @PrimaryKey
+    val id: String = UUID.randomUUID().toString(),
     
-    val tabunganId: Long,
+    // Supabase user UUID
+    val userId: String,
+    
+    // Foreign key ke bank (required, langsung ke bank/tabungan)
+    val bankId: String,
     
     // Timestamp transaksi
     val tanggal: Long = System.currentTimeMillis(),
@@ -40,5 +50,14 @@ data class Transaksi(
     val kategori: String = "",
     
     // Catatan tambahan (opsional)
-    val catatan: String? = null
+    val catatan: String? = null,
+    
+    // Timestamp pembuatan
+    val createdAt: Long = System.currentTimeMillis(),
+    
+    // Timestamp update terakhir (untuk conflict resolution)
+    val updatedAt: Long = System.currentTimeMillis(),
+    
+    // Status sinkronisasi dengan cloud
+    val syncStatus: SyncStatus = SyncStatus.PENDING
 )

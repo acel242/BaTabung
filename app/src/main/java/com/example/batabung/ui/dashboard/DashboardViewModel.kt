@@ -2,10 +2,10 @@ package com.example.batabung.ui.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.batabung.data.local.entity.Bank
 import com.example.batabung.data.local.entity.JenisTransaksi
-import com.example.batabung.data.local.entity.Tabungan
 import com.example.batabung.data.local.entity.Transaksi
-import com.example.batabung.data.repository.TabunganRepository
+import com.example.batabung.data.repository.BankRepository
 import com.example.batabung.util.FormatUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -14,30 +14,32 @@ import javax.inject.Inject
 
 /**
  * Data class untuk UI state Dashboard.
+ * Struktur baru: 1 Bank = 1 Tabungan
  */
 data class DashboardUiState(
     val isLoading: Boolean = true,
-    val tabungan: Tabungan? = null,
+    val bank: Bank? = null,
+    val bankList: List<Bank> = emptyList(),
     val saldo: Long = 0,
     val pemasukanBulanIni: Long = 0,
     val pengeluaranBulanIni: Long = 0,
     val recentTransaksi: List<Transaksi> = emptyList(),
-    val progressPercentage: Float = 0f,
-    val hasTabungan: Boolean = false
+    val hasBank: Boolean = false
 )
 
 /**
  * ViewModel untuk Dashboard Screen.
+ * Struktur baru: 1 Bank = 1 Tabungan (bank adalah tabungan itu sendiri)
  */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val repository: TabunganRepository
+    private val repository: BankRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
     
-    private var currentTabunganId: Long? = null
+    private var currentBankId: String? = null
     
     init {
         loadDashboard()
@@ -47,58 +49,100 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             
-            // Cek apakah sudah ada tabungan
-            repository.getAllTabungan().collect { tabunganList ->
-                if (tabunganList.isEmpty()) {
+            // Cek apakah sudah ada bank
+            repository.getBanks().collect { bankList ->
+                if (bankList.isEmpty()) {
                     _uiState.update { 
                         it.copy(
                             isLoading = false, 
-                            hasTabungan = false,
-                            tabungan = null
+                            hasBank = false,
+                            bank = null
                         ) 
                     }
                 } else {
-                    // Ambil tabungan pertama (untuk sekarang, single tabungan)
-                    val tabungan = tabunganList.first()
-                    currentTabunganId = tabungan.id
-                    loadTabunganData(tabungan)
+                    // Ambil bank pertama (untuk sekarang)
+                    val bank = bankList.first()
+                    currentBankId = bank.id
+                    loadBankData(bank)
                 }
             }
         }
     }
     
-    private fun loadTabunganData(tabungan: Tabungan) {
+    /**
+     * Load bank filtered by jenis (BANK atau EWALLET).
+     */
+    fun loadByJenisBank(jenisBank: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            
+            repository.getBanksByJenis(jenisBank).collect { bankList ->
+                if (bankList.isEmpty()) {
+                    _uiState.update { 
+                        it.copy(
+                            isLoading = false, 
+                            hasBank = false,
+                            bank = null
+                        ) 
+                    }
+                } else {
+                    // Ambil bank pertama dari jenis yang dipilih
+                    val bank = bankList.first()
+                    currentBankId = bank.id
+                    loadBankData(bank)
+                }
+            }
+        }
+    }
+    
+    /**
+     * Load data untuk bank tertentu berdasarkan ID.
+     */
+    fun loadBankById(bankId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            currentBankId = bankId
+            
+            repository.getBankById(bankId).collect { bank ->
+                if (bank == null) {
+                    _uiState.update { 
+                        it.copy(
+                            isLoading = false, 
+                            hasBank = false,
+                            bank = null
+                        ) 
+                    }
+                } else {
+                    loadBankData(bank)
+                }
+            }
+        }
+    }
+    
+    private fun loadBankData(bank: Bank) {
         viewModelScope.launch {
             val startOfMonth = FormatUtils.getStartOfMonth()
             val endOfMonth = FormatUtils.getEndOfMonth()
             
-            // Observe saldo
-            repository.getSaldo(tabungan.id).combine(
-                repository.getTransaksiByTabungan(tabungan.id)
+            // Observe saldo dan transaksi
+            repository.getSaldo(bank.id).combine(
+                repository.getTransaksiByBank(bank.id)
             ) { saldo, transaksiList ->
-                val pemasukanBulanIni = repository.getTotalPemasukanBulanIni(
-                    tabungan.id, startOfMonth, endOfMonth
+                val pemasukanBulanIni = repository.getTotalPemasukanInRange(
+                    bank.id, startOfMonth, endOfMonth
                 )
-                val pengeluaranBulanIni = repository.getTotalPengeluaranBulanIni(
-                    tabungan.id, startOfMonth, endOfMonth
+                val pengeluaranBulanIni = repository.getTotalPengeluaranInRange(
+                    bank.id, startOfMonth, endOfMonth
                 )
-                
-                // Hitung progress jika ada target
-                val progress = if (tabungan.target != null && tabungan.target > 0) {
-                    (saldo.toFloat() / tabungan.target.toFloat()).coerceIn(0f, 1f)
-                } else {
-                    0f
-                }
                 
                 DashboardUiState(
                     isLoading = false,
-                    tabungan = tabungan,
+                    bank = bank,
                     saldo = saldo,
                     pemasukanBulanIni = pemasukanBulanIni,
                     pengeluaranBulanIni = pengeluaranBulanIni,
                     recentTransaksi = transaksiList.take(5),
-                    progressPercentage = progress,
-                    hasTabungan = true
+                    hasBank = true
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -106,27 +150,18 @@ class DashboardViewModel @Inject constructor(
         }
     }
     
-    fun createDefaultTabungan(nama: String = "Tabungan Utama", target: Long? = null) {
-        viewModelScope.launch {
-            val tabungan = Tabungan(nama = nama, target = target)
-            repository.insertTabungan(tabungan)
-            loadDashboard()
-        }
-    }
-    
     fun addTransaksi(jenis: JenisTransaksi, jumlah: Long, kategori: String, catatan: String? = null) {
-        val tabunganId = currentTabunganId ?: return
+        val bankId = currentBankId ?: return
         
         viewModelScope.launch {
             try {
-                val transaksi = Transaksi(
-                    tabunganId = tabunganId,
+                repository.insertTransaksi(
+                    bankId = bankId,
                     jenis = jenis,
                     jumlah = jumlah,
                     kategori = kategori,
                     catatan = catatan
                 )
-                repository.insertTransaksi(transaksi)
             } catch (e: IllegalArgumentException) {
                 // Handle error: jumlah <= 0
             }

@@ -6,8 +6,8 @@ import com.example.batabung.ai.AIController
 import com.example.batabung.ai.PromptBuilder
 import com.example.batabung.ai.model.ChatMessage
 import com.example.batabung.data.ApiKeyManager
-import com.example.batabung.data.local.entity.Tabungan
-import com.example.batabung.data.repository.TabunganRepository
+import com.example.batabung.data.local.entity.Bank
+import com.example.batabung.data.repository.BankRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -15,12 +15,13 @@ import javax.inject.Inject
 
 /**
  * State untuk Chat Screen.
+ * Struktur baru: 1 Bank = 1 Tabungan
  */
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val isLoading: Boolean = false,
     val isAIReady: Boolean = false,
-    val currentTabungan: Tabungan? = null,
+    val currentBank: Bank? = null,
     val error: String? = null,
     val savedApiKey: String? = null  // API key yang tersimpan
 )
@@ -28,22 +29,23 @@ data class ChatUiState(
 /**
  * ViewModel untuk Chat Screen.
  * Mengelola state chat dan komunikasi dengan AI.
+ * Struktur baru: 1 Bank = 1 Tabungan
  */
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val aiController: AIController,
     private val promptBuilder: PromptBuilder,
-    private val repository: TabunganRepository,
+    private val repository: BankRepository,
     private val apiKeyManager: ApiKeyManager
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
     
-    private var currentTabunganId: Long? = null
+    private var currentBankId: String? = null
     
     init {
-        loadCurrentTabungan()
+        loadCurrentBank()
         addWelcomeMessage()
         loadSavedApiKey()
     }
@@ -77,13 +79,13 @@ class ChatViewModel @Inject constructor(
         }
     }
     
-    private fun loadCurrentTabungan() {
+    private fun loadCurrentBank() {
         viewModelScope.launch {
-            repository.getAllTabungan().collect { tabunganList ->
-                if (tabunganList.isNotEmpty()) {
-                    val tabungan = tabunganList.first()
-                    currentTabunganId = tabungan.id
-                    _uiState.update { it.copy(currentTabungan = tabungan) }
+            repository.getBanks().collect { bankList ->
+                if (bankList.isNotEmpty()) {
+                    val bank = bankList.first()
+                    currentBankId = bank.id
+                    _uiState.update { it.copy(currentBank = bank) }
                 }
             }
         }
@@ -95,7 +97,6 @@ class ChatViewModel @Inject constructor(
                     "Kamu bisa bertanya tentang:\n" +
                     "• \"Saldo saya berapa?\"\n" +
                     "• \"Total pengeluaran bulan ini\"\n" +
-                    "• \"Berapa persen target tercapai?\"\n" +
                     "• \"Apakah saya boros bulan ini?\"\n\n" +
                     "Silakan mulai bertanya! 💬"
         )
@@ -108,9 +109,9 @@ class ChatViewModel @Inject constructor(
     fun sendMessage(userInput: String) {
         if (userInput.isBlank()) return
         
-        val tabunganId = currentTabunganId
-        if (tabunganId == null) {
-            addErrorMessage("Belum ada tabungan. Silakan buat tabungan terlebih dahulu.")
+        val bankId = currentBankId
+        if (bankId == null) {
+            addErrorMessage("Belum ada bank/e-wallet. Silakan tambahkan bank terlebih dahulu.")
             return
         }
         
@@ -132,10 +133,10 @@ class ChatViewModel @Inject constructor(
             
             try {
                 // Get financial context
-                val context = promptBuilder.getFinancialContext(tabunganId)
+                val context = promptBuilder.getFinancialContext(bankId)
                 
                 if (context == null) {
-                    removeLoadingAndAddError("Tidak bisa mengambil data tabungan.")
+                    removeLoadingAndAddError("Tidak bisa mengambil data bank.")
                     return@launch
                 }
                 

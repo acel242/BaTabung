@@ -2,26 +2,37 @@ package com.example.batabung.navigation
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.batabung.ui.analytics.AnalyticsScreen
-import com.example.batabung.ui.chat.ChatScreen
-import com.example.batabung.ui.dashboard.DashboardScreen
+import com.example.batabung.ui.auth.LoginScreen
+import com.example.batabung.ui.bank.AddBankScreen
+import com.example.batabung.ui.bank.BankDetailScreen
+import com.example.batabung.ui.home.HomeScreen
 import com.example.batabung.ui.transaction.AddTransactionScreen
 import com.example.batabung.ui.transaction.HistoryScreen
 
 /**
  * Navigation routes untuk aplikasi.
+ * Start destination: Login (Supabase Auth)
  */
 object Routes {
-    const val DASHBOARD = "dashboard"
-    const val ADD_TRANSACTION = "add_transaction"
-    const val HISTORY = "history"
-    const val CHAT = "chat"
+    const val LOGIN = "login"
+    const val HOME = "home"
+    const val BANK_DETAIL = "bank_detail/{bankId}"
+    const val ADD_TRANSACTION = "add_transaction/{bankId}"
+    const val HISTORY = "history/{bankId}"
     const val ANALYTICS = "analytics"
+    const val ADD_BANK = "add_bank"
+    
+    fun bankDetail(bankId: String) = "bank_detail/$bankId"
+    fun addTransaction(bankId: String) = "add_transaction/$bankId"
+    fun history(bankId: String) = "history/$bankId"
 }
 
 /**
@@ -151,40 +162,84 @@ private fun verticalExitTransition(): ExitTransition {
 
 /**
  * Navigation graph untuk aplikasi BaTabung dengan smooth transitions.
+ * Start destination: Login screen dengan Supabase Auth.
  */
 @Composable
 fun BaTabungNavGraph(
-    navController: NavHostController = rememberNavController(),
-    startDestination: String = Routes.CHAT
+    navController: NavHostController = rememberNavController()
 ) {
     NavHost(
         navController = navController,
-        startDestination = startDestination,
+        startDestination = Routes.LOGIN,
         enterTransition = { enterTransition() },
         exitTransition = { exitTransition() },
         popEnterTransition = { popEnterTransition() },
         popExitTransition = { popExitTransition() }
     ) {
-        // Dashboard - main screen, menggunakan transisi default horizontal
+        // Login Screen - Entry point dengan Supabase Auth
         composable(
-            route = Routes.DASHBOARD,
+            route = Routes.LOGIN,
+            enterTransition = { fadeIn(animationSpec = tween(300)) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            popExitTransition = { fadeOut(animationSpec = tween(300)) }
+        ) {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate(Routes.HOME) {
+                        // Clear login from back stack
+                        popUpTo(Routes.LOGIN) { inclusive = true }
+                    }
+                }
+            )
+        }
+        
+        // Home Screen - Unified Bank/E-Wallet list with Bottom Navigation
+        composable(
+            route = Routes.HOME,
             enterTransition = { fadeIn(animationSpec = tween(300)) },
             exitTransition = { exitTransition() },
             popEnterTransition = { popEnterTransition() },
             popExitTransition = { fadeOut(animationSpec = tween(300)) }
         ) {
-            DashboardScreen(
+            HomeScreen(
+                onNavigateToBankDetail = { bankId ->
+                    navController.navigate(Routes.bankDetail(bankId))
+                },
+                onNavigateToAddBank = {
+                    navController.navigate(Routes.ADD_BANK)
+                },
+                onLogout = {
+                    // Navigate back to login, clearing back stack
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.HOME) { inclusive = true }
+                    }
+                }
+            )
+        }
+        
+        // Bank Detail - main Tabungan Dashboard
+        composable(
+            route = Routes.BANK_DETAIL,
+            arguments = listOf(
+                navArgument("bankId") { type = NavType.StringType }
+            ),
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) { backStackEntry ->
+            val bankId = backStackEntry.arguments?.getString("bankId") ?: ""
+            BankDetailScreen(
+                bankId = bankId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
                 onNavigateToAddTransaction = {
-                    navController.navigate(Routes.ADD_TRANSACTION)
+                    navController.navigate(Routes.addTransaction(bankId))
                 },
                 onNavigateToHistory = {
-                    navController.navigate(Routes.HISTORY)
-                },
-                onNavigateToChat = {
-                    navController.navigate(Routes.CHAT)
-                },
-                onNavigateToAnalytics = {
-                    navController.navigate(Routes.ANALYTICS)
+                    navController.navigate(Routes.history(bankId))
                 }
             )
         }
@@ -192,12 +247,17 @@ fun BaTabungNavGraph(
         // Add Transaction - modal style dengan vertical slide + bounce
         composable(
             route = Routes.ADD_TRANSACTION,
+            arguments = listOf(
+                navArgument("bankId") { type = NavType.StringType }
+            ),
             enterTransition = { verticalEnterTransition() },
             exitTransition = { exitTransition() },
             popEnterTransition = { popEnterTransition() },
             popExitTransition = { verticalExitTransition() }
-        ) {
+        ) { backStackEntry ->
+            val bankId = backStackEntry.arguments?.getString("bankId") ?: ""
             AddTransactionScreen(
+                bankId = bankId,
                 onNavigateBack = {
                     navController.popBackStack()
                 }
@@ -207,52 +267,19 @@ fun BaTabungNavGraph(
         // History - horizontal slide
         composable(
             route = Routes.HISTORY,
+            arguments = listOf(
+                navArgument("bankId") { type = NavType.StringType }
+            ),
             enterTransition = { enterTransition() },
             exitTransition = { exitTransition() },
             popEnterTransition = { popEnterTransition() },
             popExitTransition = { popExitTransition() }
-        ) {
+        ) { backStackEntry ->
+            val bankId = backStackEntry.arguments?.getString("bankId") ?: ""
             HistoryScreen(
+                bankId = bankId,
                 onNavigateBack = {
                     navController.popBackStack()
-                }
-            )
-        }
-        
-        // Chat - special transition dengan scaling untuk immersive feel
-        composable(
-            route = Routes.CHAT,
-            enterTransition = {
-                slideInHorizontally(
-                    initialOffsetX = { fullWidth -> fullWidth },
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
-                ) + fadeIn(
-                    animationSpec = tween(ANIMATION_DURATION)
-                )
-            },
-            exitTransition = { exitTransition() },
-            popEnterTransition = { popEnterTransition() },
-            popExitTransition = {
-                slideOutHorizontally(
-                    targetOffsetX = { fullWidth -> fullWidth },
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    )
-                ) + fadeOut(
-                    animationSpec = tween(ANIMATION_DURATION / 2)
-                )
-            }
-        ) {
-            ChatScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToDashboard = {
-                    navController.navigate(Routes.DASHBOARD)
                 }
             )
         }
@@ -278,6 +305,21 @@ fun BaTabungNavGraph(
             }
         ) {
             AnalyticsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        // Add Bank - modal style (no jenis parameter, selection inside form)
+        composable(
+            route = Routes.ADD_BANK,
+            enterTransition = { verticalEnterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { verticalExitTransition() }
+        ) {
+            AddBankScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }

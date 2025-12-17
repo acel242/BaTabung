@@ -3,7 +3,8 @@ package com.example.batabung.di
 import android.content.Context
 import androidx.room.Room
 import com.example.batabung.data.local.BaTabungDatabase
-import com.example.batabung.data.local.dao.TabunganDao
+import com.example.batabung.data.local.dao.BankDao
+import com.example.batabung.data.local.dao.ChatMessageDao
 import com.example.batabung.data.local.dao.TransaksiDao
 import dagger.Module
 import dagger.Provides
@@ -14,6 +15,7 @@ import javax.inject.Singleton
 
 /**
  * Hilt module untuk menyediakan Database dan DAOs.
+ * Full Account Sync dengan chat lokal
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -28,18 +30,30 @@ object DatabaseModule {
             context,
             BaTabungDatabase::class.java,
             BaTabungDatabase.DATABASE_NAME
-        ).build()
+        )
+            .addMigrations(
+                BaTabungDatabase.MIGRATION_1_2,
+                BaTabungDatabase.MIGRATION_2_3,
+                BaTabungDatabase.MIGRATION_3_4
+            )
+            .build()
     }
     
     @Provides
     @Singleton
-    fun provideTabunganDao(database: BaTabungDatabase): TabunganDao {
-        return database.tabunganDao()
+    fun provideBankDao(database: BaTabungDatabase): BankDao {
+        return database.bankDao()
     }
     
     @Provides
     @Singleton
     fun provideTransaksiDao(database: BaTabungDatabase): TransaksiDao {
         return database.transaksiDao()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideChatMessageDao(database: BaTabungDatabase): ChatMessageDao {
+        return database.chatMessageDao()
     }
 }

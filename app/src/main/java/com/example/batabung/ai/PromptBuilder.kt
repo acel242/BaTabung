@@ -1,21 +1,20 @@
 package com.example.batabung.ai
 
 import com.example.batabung.data.local.entity.JenisTransaksi
-import com.example.batabung.data.repository.TabunganRepository
+import com.example.batabung.data.repository.BankRepository
 import com.example.batabung.util.FormatUtils
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Data class untuk menyimpan konteks keuangan user.
+ * Struktur baru: 1 Bank = 1 Tabungan
  */
 data class FinancialContext(
     val saldo: Long,
     val pemasukanBulanIni: Long,
     val pengeluaranBulanIni: Long,
-    val namaTabungan: String,
-    val targetTabungan: Long?,
-    val progressPercentage: Float,
+    val namaBank: String,
     val topKategoriPengeluaran: List<Pair<String, Long>>
 )
 
@@ -35,7 +34,6 @@ enum class IntentCategory {
     SALDO_QUERY,           // Pertanyaan tentang saldo
     PEMASUKAN_QUERY,       // Pertanyaan tentang pemasukan
     PENGELUARAN_QUERY,     // Pertanyaan tentang pengeluaran
-    TARGET_QUERY,          // Pertanyaan tentang target/progress
     ANALISIS_QUERY,        // Pertanyaan analisis keuangan
     MOTIVASI_QUERY,        // Minta motivasi menabung
     KATEGORI_QUERY,        // Pertanyaan tentang kategori pengeluaran
@@ -46,10 +44,12 @@ enum class IntentCategory {
  * Builder untuk membuat prompt yang dikirim ke AI.
  * Mengikuti prinsip: AI hanya menggunakan data yang diberikan, tidak mengarang.
  * Dilengkapi dengan deteksi karakter untuk mengenali intent user.
+ * 
+ * Struktur baru: 1 Bank = 1 Tabungan
  */
 @Singleton
 class PromptBuilder @Inject constructor(
-    private val repository: TabunganRepository
+    private val repository: BankRepository
 ) {
     companion object {
         const val SYSTEM_PROMPT = """
@@ -67,7 +67,6 @@ ATURAN KETAT:
 KEMAMPUAN:
 - Menjawab pertanyaan tentang saldo
 - Memberikan ringkasan pemasukan dan pengeluaran
-- Menghitung persentase target tabungan
 - Menganalisis pola pengeluaran (jika data tersedia)
 - Memberikan motivasi menabung sederhana
 
@@ -91,11 +90,6 @@ BATASAN:
         private val PENGELUARAN_KEYWORDS = listOf(
             "pengeluaran", "keluar", "habis", "belanja", "beli", "bayar",
             "expense", "spending", "biaya", "boros", "buang"
-        )
-        
-        private val TARGET_KEYWORDS = listOf(
-            "target", "goal", "tujuan", "progress", "persen", "capai",
-            "tercapai", "kurang", "lagi", "%", "berapa lagi"
         )
         
         private val ANALISIS_KEYWORDS = listOf(
@@ -130,7 +124,6 @@ BATASAN:
         scores[IntentCategory.SALDO_QUERY] = calculateMatchScore(words, SALDO_KEYWORDS, matchedKeywords, IntentCategory.SALDO_QUERY)
         scores[IntentCategory.PEMASUKAN_QUERY] = calculateMatchScore(words, PEMASUKAN_KEYWORDS, matchedKeywords, IntentCategory.PEMASUKAN_QUERY)
         scores[IntentCategory.PENGELUARAN_QUERY] = calculateMatchScore(words, PENGELUARAN_KEYWORDS, matchedKeywords, IntentCategory.PENGELUARAN_QUERY)
-        scores[IntentCategory.TARGET_QUERY] = calculateMatchScore(words, TARGET_KEYWORDS, matchedKeywords, IntentCategory.TARGET_QUERY)
         scores[IntentCategory.ANALISIS_QUERY] = calculateMatchScore(words, ANALISIS_KEYWORDS, matchedKeywords, IntentCategory.ANALISIS_QUERY)
         scores[IntentCategory.MOTIVASI_QUERY] = calculateMatchScore(words, MOTIVASI_KEYWORDS, matchedKeywords, IntentCategory.MOTIVASI_QUERY)
         scores[IntentCategory.KATEGORI_QUERY] = calculateMatchScore(words, KATEGORI_KEYWORDS, matchedKeywords, IntentCategory.KATEGORI_QUERY)
@@ -279,8 +272,6 @@ Berikan jawaban yang singkat, jelas, dan ramah.
                 "User menanyakan tentang PEMASUKAN. Fokus pada total pemasukan bulan ini."
             IntentCategory.PENGELUARAN_QUERY -> 
                 "User menanyakan tentang PENGELUARAN. Fokus pada total pengeluaran bulan ini."
-            IntentCategory.TARGET_QUERY -> 
-                "User menanyakan tentang TARGET/PROGRESS tabungan. Fokus pada persentase pencapaian target."
             IntentCategory.ANALISIS_QUERY -> 
                 "User meminta ANALISIS keuangan. Berikan ringkasan kondisi keuangan secara keseluruhan."
             IntentCategory.MOTIVASI_QUERY -> 
@@ -308,15 +299,6 @@ Hint: $categoryHint$confidenceNote
     }
     
     private fun buildContextSection(context: FinancialContext): String {
-        val targetInfo = if (context.targetTabungan != null && context.targetTabungan > 0) {
-            """
-Target Tabungan: ${FormatUtils.formatRupiah(context.targetTabungan)}
-Progress: ${(context.progressPercentage * 100).toInt()}%
-            """.trimIndent()
-        } else {
-            "Target Tabungan: Tidak diatur"
-        }
-        
         val kategoriInfo = if (context.topKategoriPengeluaran.isNotEmpty()) {
             val kategoriStr = context.topKategoriPengeluaran.take(3).joinToString("\n") { (kategori, total) ->
                 "  - $kategori: ${FormatUtils.formatRupiah(total)}"
@@ -328,48 +310,40 @@ Progress: ${(context.progressPercentage * 100).toInt()}%
         
         return """
 === DATA KEUANGAN USER ===
-Nama Tabungan: ${context.namaTabungan}
+Bank/E-Wallet: ${context.namaBank}
 Saldo Saat Ini: ${FormatUtils.formatRupiah(context.saldo)}
 
 Bulan Ini (${FormatUtils.formatMonthYear(System.currentTimeMillis())}):
 - Total Pemasukan: ${FormatUtils.formatRupiah(context.pemasukanBulanIni)}
 - Total Pengeluaran: ${FormatUtils.formatRupiah(context.pengeluaranBulanIni)}
 - Selisih: ${FormatUtils.formatRupiah(context.pemasukanBulanIni - context.pengeluaranBulanIni)}
-
-$targetInfo$kategoriInfo
+$kategoriInfo
 =========================
         """.trimIndent()
     }
     
     /**
      * Mendapatkan konteks keuangan dari repository.
+     * Menggunakan bankId karena 1 Bank = 1 Tabungan.
      */
-    suspend fun getFinancialContext(tabunganId: Long): FinancialContext? {
-        val tabungan = repository.getTabunganByIdOnce(tabunganId) ?: return null
+    suspend fun getFinancialContext(bankId: String): FinancialContext? {
+        val bank = repository.getBankByIdOnce(bankId) ?: return null
         
         val startOfMonth = FormatUtils.getStartOfMonth()
         val endOfMonth = FormatUtils.getEndOfMonth()
         
-        val saldo = repository.getSaldoOnce(tabunganId)
-        val pemasukanBulanIni = repository.getTotalPemasukanBulanIni(tabunganId, startOfMonth, endOfMonth)
-        val pengeluaranBulanIni = repository.getTotalPengeluaranBulanIni(tabunganId, startOfMonth, endOfMonth)
+        val saldo = repository.getSaldoOnce(bankId)
+        val pemasukanBulanIni = repository.getTotalPemasukanInRange(bankId, startOfMonth, endOfMonth)
+        val pengeluaranBulanIni = repository.getTotalPengeluaranInRange(bankId, startOfMonth, endOfMonth)
         
-        val topKategori = repository.getTotalByKategori(tabunganId, JenisTransaksi.KELUAR)
+        val topKategori = repository.getTotalByKategori(bankId, JenisTransaksi.KELUAR)
             .map { it.kategori to it.total }
-        
-        val progress = if (tabungan.target != null && tabungan.target > 0) {
-            (saldo.toFloat() / tabungan.target.toFloat()).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
         
         return FinancialContext(
             saldo = saldo,
             pemasukanBulanIni = pemasukanBulanIni,
             pengeluaranBulanIni = pengeluaranBulanIni,
-            namaTabungan = tabungan.nama,
-            targetTabungan = tabungan.target,
-            progressPercentage = progress,
+            namaBank = bank.displayName,
             topKategoriPengeluaran = topKategori
         )
     }

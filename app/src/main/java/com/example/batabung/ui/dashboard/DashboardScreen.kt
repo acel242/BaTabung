@@ -30,31 +30,50 @@ import com.example.batabung.data.local.entity.JenisTransaksi
 import com.example.batabung.data.local.entity.Transaksi
 import com.example.batabung.util.FormatUtils
 import kotlinx.coroutines.delay
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 
 /**
  * Dashboard Screen - Layar utama aplikasi dengan animasi smooth.
+ * Struktur baru: 1 Bank = 1 Tabungan (bank adalah tabungan itu sendiri)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
+    jenisBank: String = "BANK",
     viewModel: DashboardViewModel = hiltViewModel(),
     onNavigateToAddTransaction: () -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
     onNavigateToChat: () -> Unit = {},
-    onNavigateToAnalytics: () -> Unit = {}
+    onNavigateToAnalytics: () -> Unit = {},
+    onNavigateBack: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     
+    // Load data berdasarkan jenis bank
+    LaunchedEffect(jenisBank) {
+        viewModel.loadByJenisBank(jenisBank)
+    }
+    
+    val screenTitle = if (jenisBank == "BANK") "Bank Saya" else "E-Wallet Saya"
+    
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = {
                     Text(
-                        text = "BaTabung",
+                        text = screenTitle,
                         fontWeight = FontWeight.Bold
                     )
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Kembali"
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 ),
                 actions = {
@@ -105,10 +124,9 @@ fun DashboardScreen(
             ) {
                 CircularProgressIndicator()
             }
-        } else if (!uiState.hasTabungan) {
-            // Animated onboarding
+        } else if (!uiState.hasBank) {
+            // Animated onboarding - no bank yet
             AnimatedEmptyStateScreen(
-                onCreateTabungan = { viewModel.createDefaultTabungan() },
                 modifier = Modifier.padding(paddingValues)
             )
         } else {
@@ -125,7 +143,6 @@ fun DashboardScreen(
 
 @Composable
 private fun AnimatedEmptyStateScreen(
-    onCreateTabungan: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isVisible by remember { mutableStateOf(false) }
@@ -161,7 +178,7 @@ private fun AnimatedEmptyStateScreen(
             )
         ) {
             Icon(
-                imageVector = Icons.Outlined.Savings,
+                imageVector = Icons.Outlined.AccountBalance,
                 contentDescription = null,
                 modifier = Modifier
                     .size(120.dp)
@@ -181,7 +198,7 @@ private fun AnimatedEmptyStateScreen(
                     )
         ) {
             Text(
-                text = "Selamat Datang di BaTabung!",
+                text = "Belum Ada Bank/E-Wallet",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -199,44 +216,11 @@ private fun AnimatedEmptyStateScreen(
                     )
         ) {
             Text(
-                text = "Mulai menabung dan kelola keuanganmu dengan mudah",
+                text = "Tambahkan bank atau e-wallet untuk mulai mencatat transaksi",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center
             )
-        }
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = fadeIn(tween(500, delayMillis = 600)) + 
-                    scaleIn(
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessLow
-                        ),
-                        initialScale = 0.8f
-                    )
-        ) {
-            Button(
-                onClick = onCreateTabungan,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Buat Tabungan Pertama",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
         }
     }
 }
@@ -259,9 +243,7 @@ private fun DashboardContent(
             AnimatedCard(delay = 0) {
                 SaldoCard(
                     saldo = uiState.saldo,
-                    tabunganNama = uiState.tabungan?.nama ?: "",
-                    target = uiState.tabungan?.target,
-                    progress = uiState.progressPercentage
+                    bankNama = uiState.bank?.displayName ?: ""
                 )
             }
         }
@@ -442,18 +424,9 @@ private fun AnimatedTransactionItem(
 @Composable
 private fun SaldoCard(
     saldo: Long,
-    tabunganNama: String,
-    target: Long?,
-    progress: Float,
+    bankNama: String,
     modifier: Modifier = Modifier
 ) {
-    // Animated progress indicator
-    val animatedProgress by animateFloatAsState(
-        targetValue = progress,
-        animationSpec = tween(1000, easing = FastOutSlowInEasing),
-        label = "progress"
-    )
-    
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -481,12 +454,12 @@ private fun SaldoCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = tabunganNama,
+                        text = bankNama,
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White.copy(alpha = 0.8f)
                     )
                     Icon(
-                        imageVector = Icons.Filled.Savings,
+                        imageVector = Icons.Filled.AccountBalance,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.8f),
                         modifier = Modifier.size(28.dp)
@@ -508,41 +481,6 @@ private fun SaldoCard(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
-                
-                if (target != null && target > 0) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Target: ${FormatUtils.formatRupiah(target)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-                            Text(
-                                text = "${(animatedProgress * 100).toInt()}%",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        LinearProgressIndicator(
-                            progress = { animatedProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.3f)
-                        )
-                    }
-                }
             }
         }
     }
