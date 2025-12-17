@@ -114,6 +114,16 @@ class SupabaseDataSource @Inject constructor() {
             Result.failure(e)
         }
     }
+
+    suspend fun deleteTransactionsByBank(bankId: String): Result<Unit> {
+        return try {
+            supabase.postgrest["transaksi"]
+                .delete { filter { eq("bank_id", bankId) } }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     // NOTE: Chat AI adalah LOKAL SAJA - tidak disinkronkan ke cloud untuk privasi
     

@@ -8,6 +8,7 @@ import com.example.batabung.data.local.entity.Transaksi
 import com.example.batabung.data.repository.BankRepository
 import com.example.batabung.util.FormatUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -39,14 +40,15 @@ class DashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
     
-    private var currentBankId: String? = null
+    private var dashboardJob: Job? = null
     
     init {
         loadDashboard()
     }
     
     fun loadDashboard() {
-        viewModelScope.launch {
+        dashboardJob?.cancel()
+        dashboardJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             
             // Cek apakah sudah ada bank
@@ -62,7 +64,7 @@ class DashboardViewModel @Inject constructor(
                 } else {
                     // Ambil bank pertama (untuk sekarang)
                     val bank = bankList.first()
-                    currentBankId = bank.id
+
                     loadBankData(bank)
                 }
             }
@@ -73,7 +75,8 @@ class DashboardViewModel @Inject constructor(
      * Load bank filtered by jenis (BANK atau EWALLET).
      */
     fun loadByJenisBank(jenisBank: String) {
-        viewModelScope.launch {
+        dashboardJob?.cancel()
+        dashboardJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             
             repository.getBanksByJenis(jenisBank).collect { bankList ->
@@ -88,7 +91,7 @@ class DashboardViewModel @Inject constructor(
                 } else {
                     // Ambil bank pertama dari jenis yang dipilih
                     val bank = bankList.first()
-                    currentBankId = bank.id
+
                     loadBankData(bank)
                 }
             }
@@ -99,9 +102,10 @@ class DashboardViewModel @Inject constructor(
      * Load data untuk bank tertentu berdasarkan ID.
      */
     fun loadBankById(bankId: String) {
-        viewModelScope.launch {
+        dashboardJob?.cancel()
+        dashboardJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            currentBankId = bankId
+
             
             repository.getBankById(bankId).collect { bank ->
                 if (bank == null) {
@@ -150,9 +154,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
     
-    fun addTransaksi(jenis: JenisTransaksi, jumlah: Long, kategori: String, catatan: String? = null) {
-        val bankId = currentBankId ?: return
-        
+    fun addTransaksi(bankId: String, jenis: JenisTransaksi, jumlah: Long, kategori: String, catatan: String? = null) {
         viewModelScope.launch {
             try {
                 repository.insertTransaksi(

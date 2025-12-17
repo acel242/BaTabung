@@ -167,6 +167,16 @@ class BankRepository @Inject constructor(
         
         // 2. Delete dari Supabase cloud (NonCancellable)
         withContext(NonCancellable) {
+            // Hapus transaksi terkait dulu untuk menghindari foreign key violation
+            remoteDataSource.deleteTransactionsByBank(bank.id).fold(
+                onSuccess = {
+                    Log.d(TAG, "Transactions for bank ${bank.nama} deleted from Supabase")
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "Failed to delete transactions for bank ${bank.nama}: ${error.message}", error)
+                }
+            )
+
             remoteDataSource.deleteBank(bank.id).fold(
                 onSuccess = {
                     Log.d(TAG, "Bank deleted from Supabase: ${bank.nama}")

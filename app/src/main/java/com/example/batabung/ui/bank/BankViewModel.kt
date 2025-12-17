@@ -158,7 +158,7 @@ class BankViewModel @Inject constructor(
                 bankRepository.addBank(
                     nama = bankOption.nama,
                     alias = state.alias,
-                    jenis = bankOption.jenis,
+                    jenis = state.selectedJenis,
                     packageName = bankOption.packageName
                 )
                 _addBankState.value = _addBankState.value.copy(

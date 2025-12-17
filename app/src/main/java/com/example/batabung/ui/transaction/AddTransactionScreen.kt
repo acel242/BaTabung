@@ -188,6 +188,7 @@ fun AddTransactionScreen(
                         showError = true
                     } else {
                         viewModel.addTransaksi(
+                            bankId = bankId,
                             jenis = selectedJenis,
                             jumlah = jumlah.toLong(),
                             kategori = kategori.ifEmpty { if (selectedJenis == JenisTransaksi.MASUK) "Pemasukan" else "Pengeluaran" },
