@@ -10,15 +10,20 @@
 - Intent detection dengan fuzzy matching
 - Konteks keuangan real-time
 
+### ☁️ Cloud Sync & Multi-device
+- Sinkronisasi data otomatis antar perangkat
+- Login aman dengan Email & Password
+- Offline-first architecture
+
 ### 📊 Dashboard
 - Lihat saldo dan progress tabungan
 - Grafik pemasukan vs pengeluaran
 - Target savings tracker
 
-### 💰 Manajemen Transaksi
-- Catat pemasukan dan pengeluaran
-- Kategorisasi transaksi
-- Riwayat transaksi lengkap
+### 🏦 Manajemen Akun Terintegrasi
+- Konsep "1 Bank/E-Wallet = 1 Tabungan"
+- Kelola saldo Bank dan E-Wallet dalam satu tempat
+- Riwayat transaksi terpusat
 
 ### 📈 Analytics
 - Analisis keuangan mendalam
@@ -34,6 +39,7 @@
 | Architecture | MVVM + Clean Architecture |
 | DI | Hilt |
 | Database | Room |
+| Backend | Supabase (Auth, DB, Realtime) |
 | AI | Google Gemini API |
 | Navigation | Navigation Compose |
 | Async | Kotlin Coroutines + Flow |
@@ -76,6 +82,8 @@ Aplikasi akan meminta API key saat pertama kali membuka Chat. Anda juga bisa set
 
 ```properties
 GEMINI_API_KEY=your_api_key_here
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 > 💡 Dapatkan API key gratis di [Google AI Studio](https://aistudio.google.com/apikey)
@@ -101,6 +109,10 @@ app/src/main/java/com/example/batabung/
 │   └── theme/             # App theme
 └── util/                  # Utilities
 ```
+
+## ⚠️ Known Issues
+
+- **Dark Mode Only**: Aplikasi saat ini dioptimalkan untuk Dark Mode. Penggunaan Light Mode mungkin menyebabkan bug visual atau tampilan yang tidak sesuai. Harap gunakan Dark Mode untuk pengalaman terbaik.
 
 ## 🔒 Security
 
